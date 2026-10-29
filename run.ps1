@@ -1,7 +1,7 @@
-# =========================================================================
-# Mn Checker -- Universal 24/7 Remote Bootstrapper (PowerShell Edition)
+﻿# =========================================================================
+# Mn Checker -- Universal Remote Bootstrapper (PowerShell Edition)
 # สั่งรันบนเครื่องไหนก็ได้ผ่านคำสั่งเดียว: irm https://raw.githubusercontent.com/MONXYZ-ss/MnChecker/main/run.ps1 | iex
-# ระบบจะติดตั้งและรันสแตนด์บาย 24/7 ทันที แม้จะปิด Terminal หรือรีสตาร์ตคอม!
+# โหมดตรวจเช็คชั่วคราว (Portable Mode) - ปลอดภัย ไม่ฝังระบบ ไม่รันค้างตอนเปิดคอมใหม่!
 # =========================================================================
 
 $ErrorActionPreference = "Stop"
@@ -21,14 +21,15 @@ $TaskName = "MnChecker_Daemon"
 $StopFlag = ($args -contains "-Stop") -or ($env:MN_STOP -eq "1")
 $UninstallFlag = ($args -contains "-Uninstall") -or ($env:MN_UNINSTALL -eq "1")
 $StatusFlag = ($args -contains "-Status") -or ($env:MN_STATUS -eq "1")
+$PersistFlag = ($args -contains "-Install") -or ($args -contains "-Persist") -or ($args -contains "-Daemon") -or ($env:MN_PERSIST -eq "1")
 
-# 1. Administrator Self-Elevation Check (ต้องใช้สิทธิ์ Administrator เพื่อเข้าถึงไฟล์ระบบและติดตั้ง Task Scheduler)
+# 1. Administrator Self-Elevation Check (ต้องใช้สิทธิ์ Administrator เพื่อเข้าถึงไฟล์ระบบ)
 $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if (-not $IsAdmin) {
     Write-Host ""
     Write-Host "   ======================================================================" -ForegroundColor Red
-    Write-Host "     [!] Mn Checker จำเป็นต้องใช้สิทธิ์ Administrator เพื่อติดตั้งระบบ 24/7" -ForegroundColor Yellow
+    Write-Host "     [!] Mn Checker จำเป็นต้องใช้สิทธิ์ Administrator เพื่อตรวจเช็คไฟล์ระบบ" -ForegroundColor Yellow
     Write-Host "     [*] กำลังขอสิทธิ์ผู้ดูแลระบบ (UAC)... กรุณากด Yes บนหน้าต่างที่เด้งขึ้นมา" -ForegroundColor Cyan
     Write-Host "   ======================================================================" -ForegroundColor Red
     Write-Host ""
@@ -101,9 +102,9 @@ if ($StatusFlag) {
 Clear-Host
 Write-Host ""
 Write-Host "   ======================================================================" -ForegroundColor Red
-Write-Host "     [+] Mn Checker - 24/7 Background Forensic & Anti-Cheat Suite" -ForegroundColor White
-Write-Host "     [+] Engine: 41 Forensic Modules (Hardcore & Absence Detection)" -ForegroundColor Cyan
-Write-Host "     [+] Status: ติดตั้งและเปิดใช้งาน 24/7 ตลอดเวลา (Administrator Mode)" -ForegroundColor Green
+Write-Host "     [+] Mn Checker - Forensic & Anti-Cheat Inspection Suite" -ForegroundColor White
+Write-Host "     [+] Engine: 42 Forensic Modules (Hardcore & Absence Detection)" -ForegroundColor Cyan
+Write-Host "     [+] Mode: Portable Clean Check (ไม่ฝังระบบ / ไม่รันออโต้ตอนเปิดคอม)" -ForegroundColor Green
 Write-Host "   ======================================================================" -ForegroundColor Red
 Write-Host ""
 
@@ -174,29 +175,29 @@ try {
     }
 } catch { }
 
-# 4. Register Task Scheduler for 24/7 Auto-Start on Boot
-Write-Host " [*] กำลังลงทะเบียนระบบรันตลอดเวลาตอนเปิดคอม (Task Scheduler)..." -ForegroundColor Cyan
-$TaskRegistered = $false
+# 4. Clean up any existing auto-start / Task Scheduler persistence (DEFAULT: NO AUTO-START ON BOOT)
+# ป้องกันไม่ให้ฝังในเครื่องคนอื่นเวลาเปิดคอมใหม่
 try {
-    $Action = New-ScheduledTaskAction -Execute $TargetExe -WorkingDirectory $InstallDir
-    $Trigger = New-ScheduledTaskTrigger -AtLogOn
-    $Principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
-    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+} catch { }
 
-    Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
-    $TaskRegistered = $true
-    Write-Host " [OK] ติดตั้งระบบ Auto-Start ตอนเปิดเครื่องเรียบร้อย!" -ForegroundColor Green
-} catch {
-    Write-Host " [!] คำเตือน: ไม่สามารถสร้าง Scheduled Task ได้ ($($_.Exception.Message))" -ForegroundColor Yellow
-}
-
-# 5. Launch Background Process Immediately
-Write-Host " [*] กำลังเริ่มการทำงานเบื้องหลัง (Background Daemon)..." -ForegroundColor Cyan
-if ($TaskRegistered) {
-    Start-ScheduledTask -TaskName $TaskName
+if ($PersistFlag) {
+    Write-Host " [*] กำลังลงทะเบียน Auto-Start 24/7 (Admin Host Mode)..." -ForegroundColor Cyan
+    try {
+        $Action = New-ScheduledTaskAction -Execute $TargetExe -WorkingDirectory $InstallDir
+        $Trigger = New-ScheduledTaskTrigger -AtLogOn
+        $Principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0
+        Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
+        Write-Host " [OK] เปิดใช้งาน Auto-Start ตอนเปิดเครื่องเรียบร้อย" -ForegroundColor Green
+    } catch { }
 } else {
-    Start-Process -FilePath $TargetExe -WorkingDirectory $InstallDir -WindowStyle Hidden
+    Write-Host " [*] โหมดตรวจเช็คปกติ (Portable Mode): ไม่ฝังระบบ ไม่รันออโต้ตอนเปิดเครื่องใหม่" -ForegroundColor Gray
 }
+
+# 5. Launch Background Process for Current Inspection Session Only
+Write-Host " [*] กำลังเปิดเอนจิ้น Mn Checker สำหรับการตรวจเช็ค..." -ForegroundColor Cyan
+Start-Process -FilePath $TargetExe -WorkingDirectory $InstallDir -WindowStyle Hidden
 
 $TargetUrl = "http://127.0.0.1:8787"
 $Ready = $false
@@ -217,10 +218,10 @@ if ($Ready) {
     $LivePid = (Get-NetTCPConnection -LocalPort 8787 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -gt 0 }) -join ", "
     Write-Host ""
     Write-Host "   ======================================================================" -ForegroundColor Green
-    Write-Host "     [OK] Mn Checker ติดตั้งและเริ่มทำงานตลอดเวลา 24/7 สำเร็จแล้ว!" -ForegroundColor White
-    Write-Host "     [*] Process ID: $LivePid | สิทธิ์: Administrator (Highest Privileges)" -ForegroundColor Cyan
+    Write-Host "     [OK] Mn Checker เปิดระบบตรวจเช็คสำเร็จเรียบร้อย!" -ForegroundColor White
+    Write-Host "     [*] Process ID: $LivePid | สิทธิ์: Administrator" -ForegroundColor Cyan
     Write-Host "     [*] Web Dashboard: $TargetUrl" -ForegroundColor White
-    Write-Host "     [*] การทำงาน: แม้จะปิดหน้าต่างนี้ หรือรีสตาร์ตคอมพิวเตอร์ ระบบก็จะรันรอไว้ตลอด" -ForegroundColor Gray
+    Write-Host "     [*] ความปลอดภัย: ทำงานเฉพาะรอบนี้ เมื่อกดปิดโปรแกรมจะหยุดทำงาน และไม่รันตอนเปิดคอมใหม่" -ForegroundColor Gray
     Write-Host "   ======================================================================" -ForegroundColor Green
     Write-Host ""
     
